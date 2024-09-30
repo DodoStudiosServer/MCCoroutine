@@ -11,14 +11,11 @@ import kotlinx.coroutines.CoroutineStart
 import java.lang.reflect.Method
 import kotlin.coroutines.Continuation
 
-class EventServiceImpl(
-    private val pluginContainer: PluginContainer,
-    private val suspendingPluginContainer: SuspendingPluginContainer
-) {
+class EventServiceImpl(private val pluginContainer: PluginContainer, private val suspendingPluginContainer: SuspendingPluginContainer) {
     /**
      * Registers the given listener.
      */
-    fun registerListener(listener: Any, onlyRegisterSuspend : Boolean) {
+    fun registerListener(listener: Any, onlyRegisterSuspend: Boolean) {
         if (!onlyRegisterSuspend) {
             require(pluginContainer != listener) { "The plugin main instance is automatically registered." }
         }
@@ -62,15 +59,19 @@ class EventServiceImpl(
 
         val untargetedEventHandlerClass = Class.forName("com.velocitypowered.proxy.event.UntargetedEventHandler")
         val buildHandlerMethod = untargetedEventHandlerClass.getDeclaredMethod("buildHandler", Any::class.java)
-
         val handlerRegistrationClass =
             Class.forName("com.velocitypowered.proxy.event.VelocityEventManager\$HandlerRegistration")
+        val asyncTypeClass = Class.forName("com.velocitypowered.proxy.event.VelocityEventManager\$AsyncType")
+        val neverAsyncField = asyncTypeClass.getDeclaredField("NEVER")
+        neverAsyncField.isAccessible = true
+        val neverAsync = neverAsyncField.get(null)
         val handlerRegistrationClassConstructor = handlerRegistrationClass.getDeclaredConstructor(
             PluginContainer::class.java,
             Short::class.java,
             Class::class.java,
             Any::class.java,
-            EventHandler::class.java
+            EventHandler::class.java,
+            asyncTypeClass,
         )
         handlerRegistrationClassConstructor.isAccessible = true
 
@@ -91,15 +92,14 @@ class EventServiceImpl(
                         }
                     }
 
-                    override fun executeAsync(event: Any): EventTask? {
-                        return EventTask.withContinuation { continuation: com.velocitypowered.api.event.Continuation ->
+                    override fun executeAsync(event: Any): EventTask? =
+                        EventTask.withContinuation { continuation: com.velocitypowered.api.event.Continuation ->
                             // Start unDispatched on the same thread but end up on the velocity dispatcher.
                             pluginContainer.launch(pluginContainer.velocityDispatcher, CoroutineStart.UNDISPATCHED) {
                                 method.invokeSuspend(listener, event)
                                 continuation.resume()
                             }
                         }
-                    }
                 }
 
                 val handlerRegistration = handlerRegistrationClassConstructor.newInstance(
@@ -107,7 +107,8 @@ class EventServiceImpl(
                     order,
                     eventType,
                     listener,
-                    handler
+                    handler,
+                    neverAsync,
                 )
                 registrations.add(handlerRegistration)
                 continue
@@ -118,7 +119,7 @@ class EventServiceImpl(
                     "Invalid listener method {} in {}: {}",
                     method.getName(),
                     method.getDeclaringClass().getName(),
-                    errors
+                    errors,
                 )
                 continue
             }
@@ -126,7 +127,7 @@ class EventServiceImpl(
             val untargetedHandler = loadingCacheClassGetMethod.invoke(unTargetedMethodHandlers, method)
             val handler = buildHandlerMethod.invoke(untargetedHandler, listener) as EventHandler<Any>
             val handlerRegistration =
-                handlerRegistrationClassConstructor.newInstance(pluginContainer, order, eventType, listener, handler)
+                handlerRegistrationClassConstructor.newInstance(pluginContainer, order, eventType, listener, handler, neverAsync)
 
             if (!onlyRegisterSuspend) {
                 registrations.add(handlerRegistration)
