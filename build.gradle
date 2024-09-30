@@ -8,13 +8,13 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath group: 'org.jetbrains.kotlin', name: 'kotlin-gradle-plugin', version: '1.9.25'
+        classpath group: 'org.jetbrains.kotlin', name: 'kotlin-gradle-plugin', version: '2.0.20'
         classpath "org.jetbrains.dokka:dokka-gradle-plugin:1.9.20"
     }
 }
 
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.9.25'
+    id 'org.jetbrains.kotlin.jvm' version '2.0.20'
     id 'io.codearte.nexus-staging' version '0.20.0'
     id "de.marcphilipp.nexus-publish" version '0.2.0'
 }
@@ -45,7 +45,7 @@ subprojects {
     group 'com.github.shynixn.mccoroutine'
     version '2.19.0'
 
-    sourceCompatibility = 1.8
+    sourceCompatibility = 21
 
     apply plugin: 'kotlin'
     apply plugin: 'signing'
@@ -54,10 +54,10 @@ subprojects {
     apply plugin: "de.marcphilipp.nexus-publish"
 
     compileKotlin {
-        kotlinOptions.jvmTarget = "1.8"
+        kotlinOptions.jvmTarget = "21"
     }
     compileTestKotlin {
-        kotlinOptions.jvmTarget = "1.8"
+        kotlinOptions.jvmTarget = "21"
     }
 
     test {
